@@ -25,6 +25,7 @@ const cookieOptions = {
 
 // 1. Register User
 const registerUser = asyncHandler(async (req, res) => {
+  console.log('kjgnbijfgb')
   const { name, email, password, role } = req.body;
 
   if (!name || !email || !password) {
