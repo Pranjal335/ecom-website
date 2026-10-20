@@ -3,6 +3,7 @@ const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const User = require('../models/user.model');
 const jwt = require('jsonwebtoken');
+const { authLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // Helper to generate access & refresh tokens and persist refresh token
 const generateAccessAndRefreshTokens = async (userId) => {

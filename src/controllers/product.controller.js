@@ -2,8 +2,8 @@ const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const Product = require('../models/product.model');
+const { cacheGet, cacheSet, cacheDelPattern } = require('../config/redis');
 
-// Helper to generate URL slug
 const createSlug = (text) =>
   text
     .toString()
@@ -38,10 +38,13 @@ const createProduct = asyncHandler(async (req, res) => {
     seller: req.user._id,
   });
 
+  // Invalidate catalog search caches whenever a new product is added
+  await cacheDelPattern('products:catalog:*');
+
   return res.status(201).json(new ApiResponse(201, product, 'Product created successfully'));
 });
 
-// 2. Get Products with Advanced Filter, Search, Sort & Pagination
+// 2. Get Products with Advanced Filter, Search, Sort, Pagination & Redis Caching
 const getAllProducts = asyncHandler(async (req, res) => {
   const {
     keyword,
@@ -56,18 +59,31 @@ const getAllProducts = asyncHandler(async (req, res) => {
     limit = 10,
   } = req.query;
 
+  // Build a deterministic cache key from normalized query params
+  const normalizedParams = Object.keys(req.query)
+    .sort()
+    .map((k) => `${k}=${req.query[k]}`)
+    .join('&');
+  const cacheKey = `products:catalog:${normalizedParams || 'default'}`;
+
+  // 1. Check Redis Cache
+  const cachedData = await cacheGet(cacheKey);
+  if (cachedData) {
+    return res
+      .status(200)
+      .json(new ApiResponse(200, cachedData, 'Products fetched from cache'));
+  }
+
+  // 2. Query MongoDB on Cache Miss
   const query = { isActive: true };
 
-  // Full-text search
   if (keyword) {
     query.$text = {$search: keyword };
   }
 
-  // Exact match filters
   if (category) query.category = category;
   if (brand) query.brand = brand;
 
-  // Numeric range filters
   if (minPrice || maxPrice) {
     query.price = {};
     if (minPrice) query.price.$gte = Number(minPrice);
@@ -78,12 +94,10 @@ const getAllProducts = asyncHandler(async (req, res) => {
     query.ratingsAverage = { $gte: Number(minRating) };
   }
 
-  // Pagination parameters
   const pageNumber = Math.max(1, parseInt(page, 10));
   const pageSize = Math.max(1, Math.min(100, parseInt(limit, 10)));
   const skip = (pageNumber - 1) * pageSize;
 
-  // Sorting
   const sortDirection = order === 'asc' ? 1 : -1;
   const sortOptions = {};
   sortOptions[sortBy] = sortDirection;
@@ -101,28 +115,38 @@ const getAllProducts = asyncHandler(async (req, res) => {
 
   const totalPages = Math.ceil(total / pageSize);
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        products,
-        pagination: {
-          totalProducts: total,
-          totalPages,
-          currentPage: pageNumber,
-          limit: pageSize,
-          hasNextPage: pageNumber < totalPages,
-          hasPrevPage: pageNumber > 1,
-        },
-      },
-      'Products fetched successfully'
-    )
-  );
+  const responsePayload = {
+    products,
+    pagination: {
+      totalProducts: total,
+      totalPages,
+      currentPage: pageNumber,
+      limit: pageSize,
+      hasNextPage: pageNumber < totalPages,
+      hasPrevPage: pageNumber > 1,
+    },
+  };
+
+  // 3. Write to Redis with 10-minute TTL (600s)
+  await cacheSet(cacheKey, responsePayload, 600);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, responsePayload, 'Products fetched successfully'));
 });
 
-// 3. Get Single Product by ID or Slug
+// 3. Get Single Product by ID or Slug with Caching
 const getProductByIdOrSlug = asyncHandler(async (req, res) => {
   const { identifier } = req.params;
+  const cacheKey = `product:detail:${identifier}`;
+
+  // Check cache
+  const cachedProduct = await cacheGet(cacheKey);
+  if (cachedProduct) {
+    return res
+      .status(200)
+      .json(new ApiResponse(200, cachedProduct, 'Product details fetched from cache'));
+  }
 
   const isObjectId = /^[0-9a-fA-F]{24}$/.test(identifier);
   const query = isObjectId ? { _id: identifier } : { slug: identifier };
@@ -134,6 +158,9 @@ const getProductByIdOrSlug = asyncHandler(async (req, res) => {
   if (!product) {
     throw new ApiError(404, 'Product not found');
   }
+
+  // Cache single product details for 1 hour (3600s)
+  await cacheSet(cacheKey, product, 3600);
 
   return res.status(200).json(new ApiResponse(200, product, 'Product fetched successfully'));
 });
