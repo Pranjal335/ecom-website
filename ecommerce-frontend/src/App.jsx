@@ -3,20 +3,11 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
 import Home from './pages/Home';
 import ProductDetail from './pages/ProductDetail';
+import Cart from './pages/Cart';
+import Login from './pages/Login';
+import Register from './pages/Register';
 import { useAuthStore } from './store/useAuthStore';
 import { useCartStore } from './store/useCartStore';
-
-const Cart = () => (
-  <div className="max-w-7xl mx-auto p-6">
-    <h1 className="text-2xl font-bold">Shopping Cart</h1>
-  </div>
-);
-
-const Login = () => (
-  <div className="max-w-md mx-auto mt-12 p-6 bg-white rounded shadow">
-    <h2 className="text-xl font-bold mb-4">Login to your account</h2>
-  </div>
-);
 
 function App() {
   const { checkAuth } = useAuthStore();
@@ -37,6 +28,7 @@ function App() {
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
           </Routes>
         </main>
       </div>

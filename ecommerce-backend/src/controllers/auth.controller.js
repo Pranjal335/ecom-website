@@ -18,10 +18,13 @@ const generateAccessAndRefreshTokens = async (userId) => {
 };
 
 // Cookie configuration
+const isProduction = process.env.NODE_ENV === 'production';
+
 const cookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
+  secure: isProduction, // false on local HTTP development
+  sameSite: isProduction ? 'none' : 'lax', // 'lax' permits cookies on local cross-port requests
+  path: '/',
 };
 
 // 1. Register User

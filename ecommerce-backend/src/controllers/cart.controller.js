@@ -25,7 +25,8 @@ const getCart = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(200, cart, 'Cart fetched successfully'));
 });
 
-// 2. Add Item to Cart
+
+// 2. Add to Cart
 const addToCart = asyncHandler(async (req, res) => {
   const { productId, quantity = 1 } = req.body;
 
@@ -75,7 +76,12 @@ const addToCart = asyncHandler(async (req, res) => {
 
   cart = await recalculateCart(cart);
 
-  return res.status(200).json(new ApiResponse(200, cart, 'Item added to cart'));
+  // Repopulate before sending to frontend
+  const populatedCart = await Cart.findById(cart._id)
+    .populate('items.product', 'title slug price discountPrice images stock brand')
+    .populate('coupon', 'code discountType discountValue');
+
+  return res.status(200).json(new ApiResponse(200, populatedCart, 'Item added to cart'));
 });
 
 // 3. Update Item Quantity
@@ -99,7 +105,6 @@ const updateCartItemQuantity = asyncHandler(async (req, res) => {
   }
 
   if (parsedQty <= 0) {
-    // If quantity is set to 0 or negative, remove the item
     cart.items.splice(itemIndex, 1);
   } else {
     const product = await Product.findById(productId);
@@ -109,9 +114,14 @@ const updateCartItemQuantity = asyncHandler(async (req, res) => {
     cart.items[itemIndex].quantity = parsedQty;
   }
 
-  const updatedCart = await recalculateCart(cart);
+  await recalculateCart(cart);
 
-  return res.status(200).json(new ApiResponse(200, updatedCart, 'Cart updated successfully'));
+  // Repopulate before sending to frontend
+  const populatedCart = await Cart.findById(cart._id)
+    .populate('items.product', 'title slug price discountPrice images stock brand')
+    .populate('coupon', 'code discountType discountValue');
+
+  return res.status(200).json(new ApiResponse(200, populatedCart, 'Cart updated successfully'));
 });
 
 // 4. Remove Item From Cart
@@ -124,11 +134,15 @@ const removeCartItem = asyncHandler(async (req, res) => {
   }
 
   cart.items = cart.items.filter((item) => item.product.toString() !== productId);
-  const updatedCart = await recalculateCart(cart);
+  await recalculateCart(cart);
 
-  return res.status(200).json(new ApiResponse(200, updatedCart, 'Item removed from cart'));
+  // Repopulate before sending to frontend
+  const populatedCart = await Cart.findById(cart._id)
+    .populate('items.product', 'title slug price discountPrice images stock brand')
+    .populate('coupon', 'code discountType discountValue');
+
+  return res.status(200).json(new ApiResponse(200, populatedCart, 'Item removed from cart'));
 });
-
 // 5. Apply Coupon
 const applyCoupon = asyncHandler(async (req, res) => {
   const { code } = req.body;
