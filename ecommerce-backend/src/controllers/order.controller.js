@@ -186,9 +186,46 @@ const cancelOrder = asyncHandler(async (req, res) => {
   }
 });
 
+// 5. Update Order Status (Seller or Admin only)
+const updateOrderStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { orderStatus } = req.body;
+
+  const validStatuses = ['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
+  if (!orderStatus || !validStatuses.includes(orderStatus)) {
+    throw new ApiError(400, `Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+  }
+
+  const order = await Order.findById(id);
+  if (!order) {
+    throw new ApiError(404, 'Order not found');
+  }
+
+  if (order.orderStatus === 'DELIVERED') {
+    throw new ApiError(400, 'Delivered orders cannot be updated further');
+  }
+
+  order.orderStatus = orderStatus;
+
+  if (orderStatus === 'DELIVERED') {
+    order.deliveredAt = new Date();
+    // If Cash On Delivery, mark as paid upon delivery
+    if (order.paymentMethod === 'COD' && !order.isPaid) {
+      order.isPaid = true;
+      order.paidAt = new Date();
+    }
+  }
+
+  await order.save();
+
+  return res.status(200).json(new ApiResponse(200, order, `Order marked as ${orderStatus}`));
+});
+
+
 module.exports = {
   createOrder,
   getMyOrders,
   getOrderById,
   cancelOrder,
+  updateOrderStatus,
 };

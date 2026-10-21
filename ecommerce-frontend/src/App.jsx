@@ -11,6 +11,8 @@ import Orders from './pages/Orders';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import { useAuthStore } from './store/useAuthStore';
 import { useCartStore } from './store/useCartStore';
+import SellerDashboard from './pages/SellerDashboard';
+import AdminRoute from './components/common/AdminRoute';
 
 function App() {
   const { checkAuth } = useAuthStore();
@@ -40,6 +42,14 @@ function App() {
                 <ProtectedRoute>
                   <Checkout />
                 </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/seller/dashboard"
+              element={
+                <AdminRoute>
+                  <SellerDashboard />
+                </AdminRoute>
               }
             />
             <Route

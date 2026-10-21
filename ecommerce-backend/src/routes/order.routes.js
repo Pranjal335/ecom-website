@@ -4,19 +4,16 @@ const {
   getMyOrders,
   getOrderById,
   cancelOrder,
+  updateOrderStatus,
 } = require('../controllers/order.controller');
-const { verifyJWT } = require('../middlewares/auth.middleware');
-const { orderLimiter } = require('../middlewares/rateLimiter.middleware');
-
-
+const { verifyJWT, authorizeRoles } = require('../middlewares/auth.middleware');
 
 const router = Router();
 
 router.use(verifyJWT);
 
-// Apply order limiter to order placement
 router.route('/')
-  .post(orderLimiter, createOrder)
+  .post(createOrder)
   .get(getMyOrders);
 
 router.route('/:id')
@@ -24,5 +21,8 @@ router.route('/:id')
 
 router.route('/:id/cancel')
   .put(cancelOrder);
+
+router.route('/:id/status')
+  .patch(authorizeRoles('seller', 'admin'), updateOrderStatus);
 
 module.exports = router;
